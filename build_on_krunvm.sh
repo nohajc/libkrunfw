@@ -12,25 +12,39 @@ fi
 # realpath does not exist by default on macOS, use `brew install coreutils` to get it
 SCRIPTPATH=`realpath $0`
 WORKDIR=`dirname $SCRIPTPATH`
-krunvm create fedora --name libkrunfw-builder --cpus 2 --mem 2048 -v $WORKDIR:/work -w /work
+krunvm create debian:bookworm-slim --name libkrunfw-builder --cpus 2 --mem 2048 -v $WORKDIR:/work -w /work
 if [ $? != 0 ]; then
 	echo "Error creating lightweight VM"
 	exit -1
 fi
 
-krunvm start libkrunfw-builder /usr/bin/dnf -- install -y 'dnf-command(builddep)' python3-pyelftools
+krunvm start libkrunfw-builder /usr/bin/apt-get -- update
 if [ $? != 0 ]; then
-	echo "Error installing dnf-builddep on VM"
+	echo "Error updating debian repository"
 	krunvm delete libkrunfw-builder
 	exit -1
 fi
 
-krunvm start libkrunfw-builder /usr/bin/dnf -- builddep -y kernel
+krunvm start libkrunfw-builder /usr/bin/apt-get -- upgrade -y
 if [ $? != 0 ]; then
-	echo "Error installing build dependencies for kernel"
+	echo "Error upgrading debian packages"
 	krunvm delete libkrunfw-builder
 	exit -1
 fi
+
+krunvm start libkrunfw-builder /usr/bin/apt-get -- install -y curl build-essential python3-pyelftools bc kmod cpio flex libncurses5-dev libelf-dev libssl-dev dwarves bison
+if [ $? != 0 ]; then
+	echo "Error installing build dependencies on VM"
+	krunvm delete libkrunfw-builder
+	exit -1
+fi
+
+#krunvm start libkrunfw-builder /usr/bin/dnf -- builddep -y kernel
+#if [ $? != 0 ]; then
+#	echo "Error installing build dependencies for kernel"
+#	krunvm delete libkrunfw-builder
+#	exit -1
+#fi
 
 krunvm start libkrunfw-builder /usr/bin/make -- -j2
 if [ $? != 0 ]; then
